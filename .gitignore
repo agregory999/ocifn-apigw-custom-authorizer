@@ -1,0 +1,4 @@
+src/test-code/*
+keys/*
+notes.txt
+src/ocifn-generate-jwt-assertion-python/server.key

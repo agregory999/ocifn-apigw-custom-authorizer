@@ -1,0 +1,7 @@
+{
+    "BaseUrl" : "https://idcs-4c88472bb4c2475aa6ddcfabc52af290.identity.oraclecloud.com",
+    "AudienceServiceUrl" : "https://idcs-4c88472bb4c2475aa6ddcfabc52af290.identity.oraclecloud.com",
+    "scope" : "https://486492DB75A64F4CB3F2C5FCFA5384B8.integration.ocp.oraclecloud.com:443/apigw",
+    "LogLevel":"INFO",
+    "ConsoleLog":"True"
+  }  
