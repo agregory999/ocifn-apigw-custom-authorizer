@@ -36,42 +36,100 @@ c) validates the required scope needed to call the downstream service - this mus
 
 In cases where authentication or authorization fails, API GW returns a 401 error to the client.
 
+Diagram of the sequence involved:
 
-## Deployment
+![Sequence Diagram](images/AssertionintoToken-Extended-APIGWwithCustomAuthorizerFunction.jpg)
+
+## Initial Setup
 
 (Work in Progress)
 
+[Create a self-signed cert/key combination](https://major.io/2007/08/02/generate-self-signed-certificate-and-key-in-one-line/)
+[Generate a public key](https://stackoverflow.com/questions/5244129/use-rsa-private-key-to-generate-public-key)
+[Create an OCI Vault](https://docs.oracle.com/en-us/iaas/Content/KeyManagement/Concepts/keyoverview.htm)
+Place private and public key in OCI vault
+[Set up Functions Application and FN command line](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionsquickstartguidestop.htm) 
+
+## Deployment of Functions
+
+(Work in Progress)
+
+1) Clone this repo
+2) Deploy functions to function app
+
+Deployment can happen from a cloud shell or local shell.  from the repo root (and assuming your Functions App is called *FunctionsApp*):
+```bash
+cd src
+fn -v deploy  --app FunctionsApp ocifn-jwt-assertion-python
+fn -v deploy  --app FunctionsApp ocifn-apigw-assertion-authorizer-python
+```
+
+3) After deployment, use the OCI Console to copy the function OCID fo the *ocifn-apigw-assertion-authorizer-python* function.  Use that for the next section.
+
+## Security Post-Deployment
+
+In order for a function to have access to tenancy resources, it must be given permission via Dynamic Group.  The way this works is by defining a Dynamic Group, where the function itself is a member.  This means that code executing inside the function assumes the group identity of the Dynamic Group.
+
+![Dynamic Group](images/DynamicGroup.png)
+
+To give permissions for the Dynamic Group to "do something", a policy is written.  This policy can be tenancy-wide, or within a compartment.  The policy follows the standard syntax of *Allow <group or dynamic group> to <verb> <resource> in <compartment or tenancy> where <optional extras>*.
+
+An example policy shown here allows the *AGFunctionsGroup* to perform the tasks highlighted.  One of these is to invoke another function, which is required here.  The more generic one (all resources) covers anything in a compartment, which includes access to Vault.  We could scope this down way further so that onyl a specific secret could be read.
+
+![Policy](images/DGPolicy.png)
+
 ### Function Configs (after deployment)
 
-ocifn-generate-jwt-assertion-python:
+Each function needs to be configured with runtime configs prior to running.  These can be viewed as "Constants", but can be changed at runtime if necessary.
+
+#### ocifn-generate-jwt-assertion-python:
 
 ```
 fn config f FunctionsApp ocifn-generate-jwt-assertion-python IDCS_CLIENT_ID 7ed17eb8d2604c67a26fb3a5d565702c
 ```
-(optional)
+Optionally, the following could be set.  If the VALID-API-KEY is set, the incoming call requires it to be passed in order for a match to occur.  This effectively adds simple auth to the function, as the API KEY can be a UUID or un-guessable string.
 ```
 fn config f FunctionsApp ocifn-generate-jwt-assertion-python DEBUG true
 fn config f FunctionsApp ocifn-generate-jwt-assertion-python VALID-API-KEY 12345
 ```
-ocifn-apigw-assertion-authorizer-python:
+#### ocifn-apigw-assertion-authorizer-python:
+Here the function is configured with required parameters that it uses to access IDCS.  These could be changed based on the underlying implementation of Oauth.  Note that the ones that are OCIDs are there to prevent "hard-coded" sensitive data.  These OCIDs are references to Vault Secrets, so the actual values must be placed into a Vault and the OCIDs copied.
 ```
 fn config f FunctionsApp ocifn-apigw-assertion-authorizer-python IDCS_APIGW_SCOPE https://486492DB75A64F4CB3F2C5FCFA5384B8.integration.ocp.oraclecloud.com:443/apigw
 fn config f FunctionsApp ocifn-apigw-assertion-authorizer-python IDCS_CLIENT_ID 7ed17eb8d2604c67a26fb3a5d565702c
-fn config f FunctionsApp ocifn-apigw-assertion-authorizer-python IDCS_ISSUER https://identity.oraclecloud.com/\t
+fn config f FunctionsApp ocifn-apigw-assertion-authorizer-python IDCS_ISSUER https://identity.oraclecloud.com/
 fn config f FunctionsApp ocifn-apigw-assertion-authorizer-python IDCS_CLIENT_SECRET_OCID ocid1.vaultsecret.oc1.iad.amaaaaaaytsgwayatktorrcwbzynippxloxuhycj5ubmntpjwif7t5tcydqa
 fn config f FunctionsApp ocifn-apigw-assertion-authorizer-python ASSERTER_PUBLIC_KEY_OCID ocid1.vaultsecret.oc1.iad.amaaaaaaytsgwayaxd2mozeuq4vhontb3u4xlwa7ifghca6dsltksiuew5xq
 fn config f FunctionsApp ocifn-apigw-assertion-authorizer-python ASSERTER_PRIVATE_KEY_OCID ocid1.vaultsecret.oc1.iad.amaaaaaaytsgwayai22l6jfmkmsdwcqducpb45n47maayofyknfzknd44w4q
 ```
-(optional)
+Optionally set DEBUG to see more details in the Logs.  
 ```
 fn config f FunctionsApp ocifn-apigw-assertion-authorizer-python DEBUG true
 ```
-## Invoking
 
-With 1 Scope
-echo '{"username":"andrew.gregory@oracle.com","seconds":60,"api-key":"12345","scopes":["https://iujym2jswmie35ewbwua4ozx3y.apigateway.us-ashburn-1.oci.customer-oci.com/apigw"]}'|fn invoke FunctionsApp ocifn-generate-jwt-assertion-python
+## Invoking the JWT Assertion Generator
 
-Multiple Scopes:
-echo '{"username":"andrew.gregory@oracle.com","seconds":1800,"api-key":"12345","scopes":["https://iujym2jswmie35ewbwua4ozx3y.apigateway.us-ashburn-1.oci.customer-oci.com/apigw","https://486492DB75A64F4CB3F2C5FCFA5384B8.integration.ocp.oraclecloud.com:443urn:opc:resource:consumer::all","https://486492DB75A64F4CB3F2C5FCFA5384B8.integration.ocp.oraclecloud.com:443/ic/api/"]}'|fn invoke FunctionsApp ocifn-generate-jwt-assertion-python {"assertion": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6ImFnY2VydDIifQ.eyJwcm4iOiJhbmRyZXcuZ3JlZ29yeUBvcmFjbGUuY29tIiwic3ViIjoiYW5kcmV3LmdyZWdvcnlAb3JhY2xlLmNvbSIsImlzcyI6IjdlZDE3ZWI4ZDI2MDRjNjdhMjZmYjNhNWQ1NjU3MDJjIiwiYXVkIjoiaHR0cHM6Ly9pZGVudGl0eS5vcmFjbGVjbG91ZC5jb20vIiwiaWF0IjoxNjM4MzczMDI1LCJleHAiOjE2MzgzNzQ4MjUsInNjb3BlcyI6WyJodHRwczovL2l1anltMmpzd21pZTM1ZXdid3VhNG96eDN5LmFwaWdhdGV3YXkudXMtYXNoYnVybi0xLm9jaS5jdXN0b21lci1vY2kuY29tL2FwaWd3IiwiaHR0cHM6Ly80ODY0OTJEQjc1QTY0RjRDQjNGMkM1RkNGQTUzODRCOC5pbnRlZ3JhdGlvbi5vY3Aub3JhY2xlY2xvdWQuY29tOjQ0M3VybjpvcGM6cmVzb3VyY2U6Y29uc3VtZXI6OmFsbCIsImh0dHBzOi8vNDg2NDkyREI3NUE2NEY0Q0IzRjJDNUZDRkE1Mzg0QjguaW50ZWdyYXRpb24ub2NwLm9yYWNsZWNsb3VkLmNvbTo0NDMvaWMvYXBpLyJdfQ.j_Seyb0ejrZ3PYlu2RuNIrCjaDVMCyutXYYfigs5aQ8CXIEVMcuiHmMbVw454rhgH6camkMKaHO6G8OQ05ZSrNiKAjtbttYWbvc5U48y68jlGvbXc6VWKArel7cVfCbAUI1M_RUowt-VvNAwJ9XUp4VBcLozlDUOox6gfTJQWLiLSz4vUn-cp0MPmVfFOkiivYbeVBVLsc_e4Og8X4Lx9oRDxJ1FRcI_BPAocjz_o-q7t69rnM5A0tTxkqJ8Fzo2W7mqK-jFtERV2uIpsNngxkhMavT-UFipO4im_i7W3E7__-3K26hfxAqt_K7JLNWmBnleFw8RThbqPvrpZ3L4Fw"}
+This function can be invoked via command line as follows.  Each response contains a JWT User Assertion, verifiable using [JWT Debugger](https://jwt.io):
 
-No Scope (should error)
+With API GW Scope  (and no API Key)
+```
+echo '{"username":"andrew.gregory@oracle.com","seconds":3600,"scopes":["https://iujym2jswmie35ewbwua4ozx3y.apigateway.us-ashburn-1.oci.customer-oci.com/apigw"]}'|fn invoke FunctionsApp ocifn-generate-jwt-assertion-python
+```
+The response will be:
+```
+{"assertion": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6ImFnY2VydDIifQ.eyJwcm4iOiJhbmRyZXcuZ3JlZ29yeUBvcmFjbGUuY29tIiwic3ViIjoiYW5kcmV3LmdyZWdvcnlAb3JhY2xlLmNvbSIsImlzcyI6IjdlZDE3ZWI4ZDI2MDRjNjdhMjZmYjNhNWQ1NjU3MDJjIiwiYXVkIjoiaHR0cHM6Ly9pZGVudGl0eS5vcmFjbGVjbG91ZC5jb20vIiwiaWF0IjoxNjM4Mzg5ODU1LCJleHAiOjE2MzgzOTM0NTUsInNjb3BlcyI6WyJodHRwczovL2l1anltMmpzd21pZTM1ZXdid3VhNG96eDN5LmFwaWdhdGV3YXkudXMtYXNoYnVybi0xLm9jaS5jdXN0b21lci1vY2kuY29tL2FwaWd3Il19.F-mvC4MuEB7QsHmpUAkNs9Y7q13MzVKPtvsK0wASAtjtzYFSNs257AOpvP-YId_0KdzmJepBupG2ZZXZ_AOePg41K8wKAIbE8i1nzGccYKBcAFj1F_aCpyFVkTBo9pWhcTr-HrcGcKTXNuB3Ykgln0LxC7OiNCBMUH3d4nUobw4uO3CElpdRNsw6TX7E1HNf9CuCFfKIBxELI9E16VBXxTHFJ55WflgE3YSOavIfh-vldpEuAY6mf_J5SK3GBXshyz0cnCANM9Ny9_Q5trQFXwgWAslATQyI15oWveznoXAdf68-wT8NBnogIdpY1jlskjdPRu7KRIKkdlXjxz5eng"}
+```
+
+With Multiple Scopes (and API Key if required):
+echo '{"username":"andrew.gregory@oracle.com","seconds":1800,"api-key":"12345","scopes":["https://iujym2jswmie35ewbwua4ozx3y.apigateway.us-ashburn-1.oci.customer-oci.com/apigw","https://486492DB75A64F4CB3F2C5FCFA5384B8.integration.ocp.oraclecloud.com:443urn:opc:resource:consumer::all","https://486492DB75A64F4CB3F2C5FCFA5384B8.integration.ocp.oraclecloud.com:443/ic/api/"]}'|fn invoke FunctionsApp ocifn-generate-jwt-assertion-python
+```
+The response will be:
+```
+{"assertion": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6ImFnY2VydDIifQ.eyJwcm4iOiJhbmRyZXcuZ3JlZ29yeUBvcmFjbGUuY29tIiwic3ViIjoiYW5kcmV3LmdyZWdvcnlAb3JhY2xlLmNvbSIsImlzcyI6IjdlZDE3ZWI4ZDI2MDRjNjdhMjZmYjNhNWQ1NjU3MDJjIiwiYXVkIjoiaHR0cHM6Ly9pZGVudGl0eS5vcmFjbGVjbG91ZC5jb20vIiwiaWF0IjoxNjM4Mzg5ODAwLCJleHAiOjE2MzgzOTE2MDAsInNjb3BlcyI6WyJodHRwczovL2l1anltMmpzd21pZTM1ZXdid3VhNG96eDN5LmFwaWdhdGV3YXkudXMtYXNoYnVybi0xLm9jaS5jdXN0b21lci1vY2kuY29tL2FwaWd3IiwiaHR0cHM6Ly80ODY0OTJEQjc1QTY0RjRDQjNGMkM1RkNGQTUzODRCOC5pbnRlZ3JhdGlvbi5vY3Aub3JhY2xlY2xvdWQuY29tOjQ0M3VybjpvcGM6cmVzb3VyY2U6Y29uc3VtZXI6OmFsbCIsImh0dHBzOi8vNDg2NDkyREI3NUE2NEY0Q0IzRjJDNUZDRkE1Mzg0QjguaW50ZWdyYXRpb24ub2NwLm9yYWNsZWNsb3VkLmNvbTo0NDMvaWMvYXBpLyJdfQ.rsY0mH0AJrdfI327kAiPYseJ33XEIqvObxMidRAyQHIkhBXt6_0hZdVmtuTwjX3eFa176QBQ1rHwhIa4nAjFQYfAoSPqFa2FP0eZ_sorybfilOqW4gCrMQ2KFneCGRrpMpLxrCVghQ1_0fmDNP3FwRX-co_pv3SvcdQuGhAJzZ94G73AdfIcldDchXKpir8onHomhMQ4q5Do8QZn1lr8hIRaFDMP3QzH4xfVwUlu8stmSWJKwprqjnj4Yzmv_tDq70CNiG8EIjfeaC6BmvFrQnqYcFIdpI-_bvCM7uNFFQ44nwIbVRhL2Cquhp9f7FBZd3soA7eA_LNVNyodgcwlQA"}
+```
+
+Note: The function can be invoked with no scopes, and it will produce an assertion.  However, this is not useful for the API Gateway (this example).  
+
+## Logging
+
+Logs from the functions go to the OCI Functions Invoke Log.  Within a minute of running either function, the logs can be seen
