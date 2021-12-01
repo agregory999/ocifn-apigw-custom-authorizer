@@ -1,4 +1,4 @@
-# OCI Functions for Custom Authoization
+# OCI Functions for Custom Authorization
 
 Set of functions and associated artifacts in support of allowing OCI API Gateway to authorize clients based on JWT User Assertion.
 
@@ -38,10 +38,16 @@ Diagram of the sequence involved:
 (Work in Progress)
 
 [Create a self-signed cert/key combination](https://major.io/2007/08/02/generate-self-signed-certificate-and-key-in-one-line/)
+
 [Generate a public key](https://stackoverflow.com/questions/5244129/use-rsa-private-key-to-generate-public-key)
+
 [Create an OCI Vault](https://docs.oracle.com/en-us/iaas/Content/KeyManagement/Concepts/keyoverview.htm)
+
 Place private and public key in OCI vault
+
 [Set up Functions Application and FN command line](https://docs.oracle.com/en-us/iaas/Content/Functions/Tasks/functionsquickstartguidestop.htm) 
+
+Similar to: [Set up IDCS Confidential Application for API GW](https://www.ateam-oracle.com/post/authentication-and-user-propagation-for-api-calls)
 
 ## Deployment of Functions
 
