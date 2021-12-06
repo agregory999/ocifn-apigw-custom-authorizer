@@ -13,6 +13,7 @@ from jwt import PyJWKClient
 # Constants
 APIGW_SCOPE = "/apigw"
 APIGW_AUDIENCE = "https://iujym2jswmie35ewbwua4ozx3y.apigateway.us-ashburn-1.oci.customer-oci.com"
+DOWNSTREAM_AUDIENCE = "https://486492DB75A64F4CB3F2C5FCFA5384B8.integration.ocp.oraclecloud.com:443"
 REMOTE_JWKS_URL = "https://idcs-4c88472bb4c2475aa6ddcfabc52af290.identity.oraclecloud.com/admin/v1/SigningCert/jwk"
 JWT_FUNC_OCID = "ocid1.fnfunc.oc1.iad.aaaaaaaakkqbgddsph6twwqhli77qyuz7tbgapmwumw27ingfsggzdwc5dzq"
 JWT_FUNC_ENDPOINT = "https://whdbzdmju4a.us-ashburn-1.functions.oci.oraclecloud.com"
@@ -47,6 +48,8 @@ def handler(ctx, data: io.BytesIO = None):
         cfg = dict(ctx.Config())
         idcs_client_id = cfg["IDCS_CLIENT_ID"]
         idcs_client_secret_ocid = cfg["IDCS_CLIENT_SECRET_OCID"]
+        downstream_idcs_client_id = cfg["DOWNSTREAM_IDCS_CLIENT_ID"]
+        downstream_idcs_client_secret_ocid = cfg["DOWNSTREAM_IDCS_CLIENT_SECRET_OCID"]
         idcs_token_issuer = cfg["IDCS_ISSUER"]
         # idcs_apigw_scope = cfg["IDCS_APIGW_SCOPE"]
         # asserter_private_key_ocid = cfg["ASSERTER_PRIVATE_KEY_OCID"]
@@ -54,6 +57,7 @@ def handler(ctx, data: io.BytesIO = None):
 
         # Grab secret values from OCI Vault
         idcs_client_secret = get_text_secret(idcs_client_secret_ocid)
+        downstream_idcs_client_secret = get_text_secret(downstream_idcs_client_secret_ocid)
         asserter_public_key = get_text_secret(asserter_public_key_ocid)
         logging.getLogger('authorizer').debug("IDCS Secret (dec): " + idcs_client_secret)
         logging.getLogger('authorizer').debug("Asserter PubKey (dec): " + asserter_public_key)
@@ -152,6 +156,14 @@ def handler(ctx, data: io.BytesIO = None):
             downstream_assertion = json_resp["assertion"]
 
             # Call OAuth again
+            # We need a new AM because the client info changed
+            options["ClientId"] = downstream_idcs_client_id
+            options["ClientSecret"] = downstream_idcs_client_secret
+            logging.getLogger('authorizer').debug("IDCS Options (downstream): " + str(options))
+
+            # Obtain IDCS Client
+            am = IdcsClient.AuthenticationManager(options)
+
             # Scopes was a List [] but for IDCS it is a space-separated string
             idcs_scopes = " ".join(scopes)
             access_token2_result = am.userAssertion(user_assertion=downstream_assertion,scope=idcs_scopes)
@@ -165,7 +177,7 @@ def handler(ctx, data: io.BytesIO = None):
             access_token_decoded2 = jwt.decode(
                 access_token2,
                 remote_jwks_key,
-                audience="https://486492DB75A64F4CB3F2C5FCFA5384B8.integration.ocp.oraclecloud.com:443",
+                audience=DOWNSTREAM_AUDIENCE,
                 options={"verify_signature": True},
                 algorithms=["RS256"]
             )

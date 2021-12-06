@@ -49,6 +49,46 @@ Place private and public key in OCI vault
 
 Similar to: [Set up IDCS Confidential Application for API GW](https://www.ateam-oracle.com/post/authentication-and-user-propagation-for-api-calls)
 
+## IDCS Setup
+This example relies on IDCS, but could work with any Oauth 2.0 provider capable of dealing with Client Credentials / JWT User Assertion. In order to deal with the different use cases, we use or set up the following:
+1) The OIC Confidential Application, created with each OIC Instance (unaltered)
+2) An application (see below - *A-APIGW-App*) which contains the scope for API GW (only)
+3) An application (see below - *A-OIC-App*) which contains the scopes for OIC - in this case *urn:opc:resource:consumer::all*
+
+All told, to access anything via API GW, you require the full audience + scope for APIGW:
+*https://iujym2jswmie35ewbwua4ozx3y.apigateway.us-ashburn-1.oci.customer-oci.com/apigw*
+
+To access a protected resource with its own scopes, add to the scope list as necessary.  For example, to go through API GW to OIC, the scopes needed are:
+*https://iujym2jswmie35ewbwua4ozx3y.apigateway.us-ashburn-1.oci.customer-oci.com/apigw*
+*https://486492DB75A64F4CB3F2C5FCFA5384B8.integration.ocp.oraclecloud.com:443urn:opc:resource:consumer::all*
+
+
+
+### OICInstance Application 
+
+OIC's application (per-instance) is not changed, but each user that accesses the application must be explicitly added as a User or part of a Group on the *Application Roles* page.  Users who invoke OIC integrations are added to the *ServiceInvoker* role.
+
+![OIC Screen](images/OICDefault_User.png)
+
+### APIGW Application
+
+The API Gateway application is configured to access a scope of its own, namely */apigw*.  Clients must ask for this scope in order to get a valid token for this application, and thus pass API GW.  Here is the configuration for this application:
+
+![API GW General](images/IDCS_APIGW_Overview.png)
+
+Resources exposed:
+![API GW Resources](images/IDCS_APIGW_Resources.png)
+
+### OIC Confidential Application
+
+This application does not expose its own scopes, but rather issues tokens based on inclusion of OIC's scopes within an access token request.  By asking for the appropriate OIC scope here, we disconnect this application from OIC entirely.  All we do is attempt to access OIC with this token and it will match the scopes.  Here is the configuration for this application:
+
+![OIC General](images/IDCS_OIC_Overview.png)
+
+Client Config (OIC Scope):
+
+![OIC Client Config](images/IDCS_OIC_Resources.png)
+
 ## Deployment of Functions
 
 (Work in Progress)
@@ -97,9 +137,11 @@ Here the function is configured with required parameters that it uses to access 
 fn config f FunctionsApp ocifn-apigw-assertion-authorizer-python IDCS_APIGW_SCOPE https://486492DB75A64F4CB3F2C5FCFA5384B8.integration.ocp.oraclecloud.com:443/apigw
 fn config f FunctionsApp ocifn-apigw-assertion-authorizer-python IDCS_CLIENT_ID 7ed17eb8d2604c67a26fb3a5d565702c
 fn config f FunctionsApp ocifn-apigw-assertion-authorizer-python IDCS_ISSUER https://identity.oraclecloud.com/
-fn config f FunctionsApp ocifn-apigw-assertion-authorizer-python IDCS_CLIENT_SECRET_OCID ocid1.vaultsecret.oc1.iad.amaaaaaaytsgwayatktorrcwbzynippxloxuhycj5ubmntpjwif7t5tcydqa
-fn config f FunctionsApp ocifn-apigw-assertion-authorizer-python ASSERTER_PUBLIC_KEY_OCID ocid1.vaultsecret.oc1.iad.amaaaaaaytsgwayaxd2mozeuq4vhontb3u4xlwa7ifghca6dsltksiuew5xq
-fn config f FunctionsApp ocifn-apigw-assertion-authorizer-python ASSERTER_PRIVATE_KEY_OCID ocid1.vaultsecret.oc1.iad.amaaaaaaytsgwayai22l6jfmkmsdwcqducpb45n47maayofyknfzknd44w4q
+fn config f FunctionsApp ocifn-apigw-assertion-authorizer-python IDCS_CLIENT_SECRET_OCID ocid1.vaultsecret.oc1.xxx.yyy
+fn config f FunctionsApp ocifn-apigw-assertion-authorizer-python ASSERTER_PUBLIC_KEY_OCID ocid1.vaultsecret.oc1.xxx.yyy
+fn config f FunctionsApp ocifn-apigw-assertion-authorizer-python ASSERTER_PRIVATE_KEY_OCID ocid1.vaultsecret.oc1.xxx.yyy
+fn config f FunctionsApp ocifn-apigw-assertion-authorizer-python DOWNSTREAM_IDCS_CLIENT_ID 7ed17eb8d2604c67a26fb3a5d565702c
+fn config f FunctionsApp ocifn-apigw-assertion-authorizer-python DOWNSTREAM_IDCS_CLIENT_SECRET_OCID ocid1.vaultsecret.oc1.xxx.yyy
 ```
 Optionally set DEBUG to see more details in the Logs.  
 ```
@@ -121,11 +163,11 @@ The response will be:
 ```
 With Multiple Scopes (and API Key if required):
 ```
-echo '{"username":"andrew.gregory@oracle.com","seconds":1800,"api-key":"12345","scopes":["https://iujym2jswmie35ewbwua4ozx3y.apigateway.us-ashburn-1.oci.customer-oci.com/apigw","https://486492DB75A64F4CB3F2C5FCFA5384B8.integration.ocp.oraclecloud.com:443urn:opc:resource:consumer::all","https://486492DB75A64F4CB3F2C5FCFA5384B8.integration.ocp.oraclecloud.com:443/ic/api/"]}'|fn invoke FunctionsApp ocifn-generate-jwt-assertion-python
+echo '{"username":"andrew.gregory@oracle.com","seconds":1800,"api-key":"12345","scopes":["https://iujym2jswmie35ewbwua4ozx3y.apigateway.us-ashburn-1.oci.customer-oci.com/apigw","https://486492DB75A64F4CB3F2C5FCFA5384B8.integration.ocp.oraclecloud.com:443urn:opc:resource:consumer::all"]}'|fn invoke FunctionsApp ocifn-generate-jwt-assertion-python
 ```
 The response will be:
 ```
-{"assertion": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6ImFnY2VydDIifQ.eyJwcm4iOiJhbmRyZXcuZ3JlZ29yeUBvcmFjbGUuY29tIiwic3ViIjoiYW5kcmV3LmdyZWdvcnlAb3JhY2xlLmNvbSIsImlzcyI6IjdlZDE3ZWI4ZDI2MDRjNjdhMjZmYjNhNWQ1NjU3MDJjIiwiYXVkIjoiaHR0cHM6Ly9pZGVudGl0eS5vcmFjbGVjbG91ZC5jb20vIiwiaWF0IjoxNjM4Mzg5ODAwLCJleHAiOjE2MzgzOTE2MDAsInNjb3BlcyI6WyJodHRwczovL2l1anltMmpzd21pZTM1ZXdid3VhNG96eDN5LmFwaWdhdGV3YXkudXMtYXNoYnVybi0xLm9jaS5jdXN0b21lci1vY2kuY29tL2FwaWd3IiwiaHR0cHM6Ly80ODY0OTJEQjc1QTY0RjRDQjNGMkM1RkNGQTUzODRCOC5pbnRlZ3JhdGlvbi5vY3Aub3JhY2xlY2xvdWQuY29tOjQ0M3VybjpvcGM6cmVzb3VyY2U6Y29uc3VtZXI6OmFsbCIsImh0dHBzOi8vNDg2NDkyREI3NUE2NEY0Q0IzRjJDNUZDRkE1Mzg0QjguaW50ZWdyYXRpb24ub2NwLm9yYWNsZWNsb3VkLmNvbTo0NDMvaWMvYXBpLyJdfQ.rsY0mH0AJrdfI327kAiPYseJ33XEIqvObxMidRAyQHIkhBXt6_0hZdVmtuTwjX3eFa176QBQ1rHwhIa4nAjFQYfAoSPqFa2FP0eZ_sorybfilOqW4gCrMQ2KFneCGRrpMpLxrCVghQ1_0fmDNP3FwRX-co_pv3SvcdQuGhAJzZ94G73AdfIcldDchXKpir8onHomhMQ4q5Do8QZn1lr8hIRaFDMP3QzH4xfVwUlu8stmSWJKwprqjnj4Yzmv_tDq70CNiG8EIjfeaC6BmvFrQnqYcFIdpI-_bvCM7uNFFQ44nwIbVRhL2Cquhp9f7FBZd3soA7eA_LNVNyodgcwlQA"}
+{"assertion": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6ImFnY2VydDIifQ.eyJwcm4iOiJhbmRyZXcuZ3JlZ29yeUBvcmFjbGUuY29tIiwic3ViIjoiYW5kcmV3LmdyZWdvcnlAb3JhY2xlLmNvbSIsImlzcyI6IjdlZDE3ZWI4ZDI2MDRjNjdhMjZmYjNhNWQ1NjU3MDJjIiwiYXVkIjoiaHR0cHM6Ly9pZGVudGl0eS5vcmFjbGVjbG91ZC5jb20vIiwiaWF0IjoxNjM4ODI3MzQwLCJleHAiOjE2Mzg4MjkxNDAsInNjb3BlcyI6WyJodHRwczovL2l1anltMmpzd21pZTM1ZXdid3VhNG96eDN5LmFwaWdhdGV3YXkudXMtYXNoYnVybi0xLm9jaS5jdXN0b21lci1vY2kuY29tL2FwaWd3IiwiaHR0cHM6Ly80ODY0OTJEQjc1QTY0RjRDQjNGMkM1RkNGQTUzODRCOC5pbnRlZ3JhdGlvbi5vY3Aub3JhY2xlY2xvdWQuY29tOjQ0M3VybjpvcGM6cmVzb3VyY2U6Y29uc3VtZXI6OmFsbCJdfQ.HU70IWuIwD0kStinVrYIM4wxLjYTAFgZULrHeG9FAdFWhrrsDVsi1n1KM0sVD3ZKBl668GsSQiwvS15cjm86zNMQK0SHFh21wIzKtd6LGs1ZVQAMInW4yCPREYhJbicTLGtDkUoTSAwtUPCQXe5dIv2GXLAVUVKMRoxMIj9OzOCpBRDuCmmo_Cl1wd9wCK96CZ0J8tbHch8dvAzjnsLp_OZ7QptVu0Cjqn3qPxvqng56SImM4lrBzMSkE5JFA6FCniqgOLl_tKDigarY-H8OkfZdIH3ssTISx8WYpzi1qKznP2itUzUj2nL0P9Tkd2IKPkDxoMETHMvvixBeqFSsLA"}
 ```
 
 Note: The function can be invoked with no scopes, and it will produce an assertion.  However, this is not useful for the API Gateway (this example).  
@@ -136,7 +178,7 @@ This function is only invoked via command line as a test.  The input and output 
 
 Export the ASSERTION as a bash variable:
 ```
-export ASSERTION=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6ImFnY2VydDIifQ.eyJwcm4iOiJhbmRyZXcuZ3JlZ29yeUBvcmFjbGUuY29tIiwic3ViIjoiYW5kcmV3LmdyZWdvcnlAb3JhY2xlLmNvbSIsImlzcyI6IjdlZDE3ZWI4ZDI2MDRjNjdhMjZmYjNhNWQ1NjU3MDJjIiwiYXVkIjoiaHR0cHM6Ly9pZGVudGl0eS5vcmFjbGVjbG91ZC5jb20vIiwiaWF0IjoxNjM4Mzg5ODU1LCJleHAiOjE2MzgzOTM0NTUsInNjb3BlcyI6WyJodHRwczovL2l1anltMmpzd21pZTM1ZXdid3VhNG96eDN5LmFwaWdhdGV3YXkudXMtYXNoYnVybi0xLm9jaS5jdXN0b21lci1vY2kuY29tL2FwaWd3Il19.F-mvC4MuEB7QsHmpUAkNs9Y7q13MzVKPtvsK0wASAtjtzYFSNs257AOpvP-YId_0KdzmJepBupG2ZZXZ_AOePg41K8wKAIbE8i1nzGccYKBcAFj1F_aCpyFVkTBo9pWhcTr-HrcGcKTXNuB3Ykgln0LxC7OiNCBMUH3d4nUobw4uO3CElpdRNsw6TX7E1HNf9CuCFfKIBxELI9E16VBXxTHFJ55WflgE3YSOavIfh-vldpEuAY6mf_J5SK3GBXshyz0cnCANM9Ny9_Q5trQFXwgWAslATQyI15oWveznoXAdf68-wT8NBnogIdpY1jlskjdPRu7KRIKkdlXjxz5eng
+export ASSERTION=eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsImtpZCI6ImFnY2VydDIifQ.eyJwcm4iOiJhbmRyZXcuZ3JlZ29yeUBvcmFjbGUuY29tIiwic3ViIjoiYW5kcmV3LmdyZWdvcnlAb3JhY2xlLmNvbSIsImlzcyI6IjdlZDE3ZWI4ZDI2MDRjNjdhMjZmYjNhNWQ1NjU3MDJjIiwiYXVkIjoiaHR0cHM6Ly9pZGVudGl0eS5vcmFjbGVjbG91ZC5jb20vIiwiaWF0IjoxNjM4ODI3MzQwLCJleHAiOjE2Mzg4MjkxNDAsInNjb3BlcyI6WyJodHRwczovL2l1anltMmpzd21pZTM1ZXdid3VhNG96eDN5LmFwaWdhdGV3YXkudXMtYXNoYnVybi0xLm9jaS5jdXN0b21lci1vY2kuY29tL2FwaWd3IiwiaHR0cHM6Ly80ODY0OTJEQjc1QTY0RjRDQjNGMkM1RkNGQTUzODRCOC5pbnRlZ3JhdGlvbi5vY3Aub3JhY2xlY2xvdWQuY29tOjQ0M3VybjpvcGM6cmVzb3VyY2U6Y29uc3VtZXI6OmFsbCJdfQ.HU70IWuIwD0kStinVrYIM4wxLjYTAFgZULrHeG9FAdFWhrrsDVsi1n1KM0sVD3ZKBl668GsSQiwvS15cjm86zNMQK0SHFh21wIzKtd6LGs1ZVQAMInW4yCPREYhJbicTLGtDkUoTSAwtUPCQXe5dIv2GXLAVUVKMRoxMIj9OzOCpBRDuCmmo_Cl1wd9wCK96CZ0J8tbHch8dvAzjnsLp_OZ7QptVu0Cjqn3qPxvqng56SImM4lrBzMSkE5JFA6FCniqgOLl_tKDigarY-H8OkfZdIH3ssTISx8WYpzi1qKznP2itUzUj2nL0P9Tkd2IKPkDxoMETHMvvixBeqFSsLA
 ```
 Then invoke using a Here-doc
 ```
@@ -150,7 +192,7 @@ The result will depend on the assertion itself.  For example, if only the API GW
 ```
 If more scopes were added to the assertion, the function should perform the secondary Oauth call and return the access token along with the authorized scopes:
 ```
-{"active": true, "principal": "andrew.gregory@oracle.com", "scope": ["/ic/api/", "urn:opc:resource:consumer::all"], "expiresAt": "2021-12-01T21:01:33", "context": {"access_token": "eyJ4NXQjUzI1NiI6Il9FcjI1ZUxXN1lHaW9qbF8ydXpFcGd4WTNQcTcxNXprejBjRlJER0pLNVUiLCJ4NXQiOiJZUU9VdUFaS2tDbmJLMjhjZVo4YklCZHNOc2ciLCJraWQiOiJTSUdOSU5HX0tFWSIsImFsZyI6IlJTMjU2In0.eyJjbGllbnRfb2NpZCI6Im9jaWQxLmRvbWFpbmFwcC5vYzEucGh4LmFtYWFhYWFhYXF0cDViYWFnY3lvaXprNzR6dzd1cGZha2hvNXZ1aWhwaHJ6cG92Z2Q1Z2lqYm41NWFncSIsInVzZXJfdHoiOiJBbWVyaWNhXC9DaGljYWdvIiwic3ViIjoiYW5kcmV3LmdyZWdvcnlAb3JhY2xlLmNvbSIsInVzZXJfbG9jYWxlIjoiZW4iLCJzaWRsZSI6NDgwLCJ1c2VyLnRlbmFudC5uYW1lIjoiaWRjcy00Yzg4NDcyYmI0YzI0NzVhYTZkZGNmYWJjNTJhZjI5MCIsImlzcyI6Imh0dHBzOlwvXC9pZGVudGl0eS5vcmFjbGVjbG91ZC5jb21cLyIsInVzZXJfdGVuYW50bmFtZSI6ImlkY3MtNGM4ODQ3MmJiNGMyNDc1YWE2ZGRjZmFiYzUyYWYyOTAiLCJjbGllbnRfaWQiOiI3ZWQxN2ViOGQyNjA0YzY3YTI2ZmIzYTVkNTY1NzAyYyIsInN1Yl90eXBlIjoidXNlciIsInNjb3BlIjoiXC9pY1wvYXBpXC8gdXJuOm9wYzpyZXNvdXJjZTpjb25zdW1lcjo6YWxsIiwiY2xpZW50X3RlbmFudG5hbWUiOiJpZGNzLTRjODg0NzJiYjRjMjQ3NWFhNmRkY2ZhYmM1MmFmMjkwIiwicmVnaW9uX25hbWUiOiJ1cy1waG9lbml4LWlkY3MtMSIsInVzZXJfbGFuZyI6ImVuIiwiZXhwIjoxNjM4MzkyNDkzLCJpYXQiOjE2MzgzOTA2OTMsImNsaWVudF9ndWlkIjoiNTgzMGZmZDE1MTAyNDM1ZTg5ZmM2YTdkY2Q1ZjY4NjgiLCJjbGllbnRfbmFtZSI6IkEtT0lDVHJhZGluZ1BhcnRuZXIyIiwidGVuYW50IjoiaWRjcy00Yzg4NDcyYmI0YzI0NzVhYTZkZGNmYWJjNTJhZjI5MCIsImp0aSI6IjFlZjliYjQ5YTdkOTQyMmZiOTRhMmVlZTFiNDNlNGYwIiwiZ3RwIjoiand0IiwidXNlcl9kaXNwbGF5bmFtZSI6IkFuZHJldyBHcmVnb3J5Iiwib3BjIjpmYWxzZSwic3ViX21hcHBpbmdhdHRyIjoidXNlck5hbWUiLCJwcmltVGVuYW50Ijp0cnVlLCJ0b2tfdHlwZSI6IkFUIiwiY2FfZ3VpZCI6ImNhY2N0LTUyZjI0N2FhYTMwNzRjZjNiOTExZjYzNjY5MTU4NGY5IiwiYXVkIjpbImh0dHBzOlwvXC80ODY0OTJEQjc1QTY0RjRDQjNGMkM1RkNGQTUzODRCOC5pbnRlZ3JhdGlvbi5vY3Aub3JhY2xlY2xvdWQuY29tOjQ0MyIsImh0dHBzOlwvXC9hZy1pbnRlZ3JhdGlvbi1vcmFzZW5hdGRwbHRpbnRlZ3JhdGlvbjAxLWlhLmludGVncmF0aW9uLm9jcC5vcmFjbGVjbG91ZC5jb206NDQzIiwidXJuOm9wYzpsYmFhczpsb2dpY2FsZ3VpZD00ODY0OTJEQjc1QTY0RjRDQjNGMkM1RkNGQTUzODRCOCJdLCJ1c2VyX2lkIjoiYjg0ZjkzYjg3NzUwNGUzZjlmNjE3YTMyMjU0M2MyMTMiLCJ0ZW5hbnRfaXNzIjoiaHR0cHM6XC9cL2lkY3MtNGM4ODQ3MmJiNGMyNDc1YWE2ZGRjZmFiYzUyYWYyOTAuaWRlbnRpdHkub3JhY2xlY2xvdWQuY29tIiwicmVzb3VyY2VfYXBwX2lkIjoiZWMzZWMxNjAyYjBlNGU1N2JjMmUzYjQ4ZGQ5NzQwYjcifQ.i-wmakzd4KnpPUqDPP5Mhaydf3m1-Y422Z6jOGtdnjy3oJXQrlly-olnYNTqNgeaTynyGjsMl7qpwsuOWvyCsDiHjsc5G63-htZQO0gkI_AxIOJB9eb3L8QWZsyo4_Y50li6YT_wabOBwcPnO1_jQtl4b6nRWnN4QiDuI_KR948LoH9rxQfQov0jnabUdcWy6qW16HbEdev_cE2IL5i8DtXXMGhfc1zmZOGQJZnRVbkdwpQOGX2qE4awNKHy6pTnTEhV4svQeap5LzDzrpiXmU-33MfiKnIgo-9GH9ar8RWXmomJHFdcTKS4oTUq9zAMGjoUHMyrH1EL7C5cT0JbzQ"}}
+{"active": true, "principal": "andrew.gregory@oracle.com", "scope": ["urn:opc:resource:consumer::all"], "expiresAt": "2021-12-01T21:01:33", "context": {"access_token": "eyJ4NXQjUzI1NiI6Il9FcjI1ZUxXN1lHaW9qbF8ydXpFcGd4WTNQcTcxNXprejBjRlJER0pLNVUiLCJ4NXQiOiJZUU9VdUFaS2tDbmJLMjhjZVo4YklCZHNOc2ciLCJraWQiOiJTSUdOSU5HX0tFWSIsImFsZyI6IlJTMjU2In0.eyJjbGllbnRfb2NpZCI6Im9jaWQxLmRvbWFpbmFwcC5vYzEucGh4LmFtYWFhYWFhYXF0cDViYWFnY3lvaXprNzR6dzd1cGZha2hvNXZ1aWhwaHJ6cG92Z2Q1Z2lqYm41NWFncSIsInVzZXJfdHoiOiJBbWVyaWNhXC9DaGljYWdvIiwic3ViIjoiYW5kcmV3LmdyZWdvcnlAb3JhY2xlLmNvbSIsInVzZXJfbG9jYWxlIjoiZW4iLCJzaWRsZSI6NDgwLCJ1c2VyLnRlbmFudC5uYW1lIjoiaWRjcy00Yzg4NDcyYmI0YzI0NzVhYTZkZGNmYWJjNTJhZjI5MCIsImlzcyI6Imh0dHBzOlwvXC9pZGVudGl0eS5vcmFjbGVjbG91ZC5jb21cLyIsInVzZXJfdGVuYW50bmFtZSI6ImlkY3MtNGM4ODQ3MmJiNGMyNDc1YWE2ZGRjZmFiYzUyYWYyOTAiLCJjbGllbnRfaWQiOiI3ZWQxN2ViOGQyNjA0YzY3YTI2ZmIzYTVkNTY1NzAyYyIsInN1Yl90eXBlIjoidXNlciIsInNjb3BlIjoiXC9pY1wvYXBpXC8gdXJuOm9wYzpyZXNvdXJjZTpjb25zdW1lcjo6YWxsIiwiY2xpZW50X3RlbmFudG5hbWUiOiJpZGNzLTRjODg0NzJiYjRjMjQ3NWFhNmRkY2ZhYmM1MmFmMjkwIiwicmVnaW9uX25hbWUiOiJ1cy1waG9lbml4LWlkY3MtMSIsInVzZXJfbGFuZyI6ImVuIiwiZXhwIjoxNjM4MzkyNDkzLCJpYXQiOjE2MzgzOTA2OTMsImNsaWVudF9ndWlkIjoiNTgzMGZmZDE1MTAyNDM1ZTg5ZmM2YTdkY2Q1ZjY4NjgiLCJjbGllbnRfbmFtZSI6IkEtT0lDVHJhZGluZ1BhcnRuZXIyIiwidGVuYW50IjoiaWRjcy00Yzg4NDcyYmI0YzI0NzVhYTZkZGNmYWJjNTJhZjI5MCIsImp0aSI6IjFlZjliYjQ5YTdkOTQyMmZiOTRhMmVlZTFiNDNlNGYwIiwiZ3RwIjoiand0IiwidXNlcl9kaXNwbGF5bmFtZSI6IkFuZHJldyBHcmVnb3J5Iiwib3BjIjpmYWxzZSwic3ViX21hcHBpbmdhdHRyIjoidXNlck5hbWUiLCJwcmltVGVuYW50Ijp0cnVlLCJ0b2tfdHlwZSI6IkFUIiwiY2FfZ3VpZCI6ImNhY2N0LTUyZjI0N2FhYTMwNzRjZjNiOTExZjYzNjY5MTU4NGY5IiwiYXVkIjpbImh0dHBzOlwvXC80ODY0OTJEQjc1QTY0RjRDQjNGMkM1RkNGQTUzODRCOC5pbnRlZ3JhdGlvbi5vY3Aub3JhY2xlY2xvdWQuY29tOjQ0MyIsImh0dHBzOlwvXC9hZy1pbnRlZ3JhdGlvbi1vcmFzZW5hdGRwbHRpbnRlZ3JhdGlvbjAxLWlhLmludGVncmF0aW9uLm9jcC5vcmFjbGVjbG91ZC5jb206NDQzIiwidXJuOm9wYzpsYmFhczpsb2dpY2FsZ3VpZD00ODY0OTJEQjc1QTY0RjRDQjNGMkM1RkNGQTUzODRCOCJdLCJ1c2VyX2lkIjoiYjg0ZjkzYjg3NzUwNGUzZjlmNjE3YTMyMjU0M2MyMTMiLCJ0ZW5hbnRfaXNzIjoiaHR0cHM6XC9cL2lkY3MtNGM4ODQ3MmJiNGMyNDc1YWE2ZGRjZmFiYzUyYWYyOTAuaWRlbnRpdHkub3JhY2xlY2xvdWQuY29tIiwicmVzb3VyY2VfYXBwX2lkIjoiZWMzZWMxNjAyYjBlNGU1N2JjMmUzYjQ4ZGQ5NzQwYjcifQ.i-wmakzd4KnpPUqDPP5Mhaydf3m1-Y422Z6jOGtdnjy3oJXQrlly-olnYNTqNgeaTynyGjsMl7qpwsuOWvyCsDiHjsc5G63-htZQO0gkI_AxIOJB9eb3L8QWZsyo4_Y50li6YT_wabOBwcPnO1_jQtl4b6nRWnN4QiDuI_KR948LoH9rxQfQov0jnabUdcWy6qW16HbEdev_cE2IL5i8DtXXMGhfc1zmZOGQJZnRVbkdwpQOGX2qE4awNKHy6pTnTEhV4svQeap5LzDzrpiXmU-33MfiKnIgo-9GH9ar8RWXmomJHFdcTKS4oTUq9zAMGjoUHMyrH1EL7C5cT0JbzQ"}}
 ```
 Failure to include a scope results in a failed response, which tells the API GW to reply with 401.  The complete flow:
 ```
@@ -233,7 +275,13 @@ Logs from the functions go to the OCI Functions Invoke Log.  Within a minute of 
 
 ![Functions Logging](images/FunctionsLogging.png)
 
-The log level can be changed to INFO or higher via the configuration of DEBUG (presence of)
+The log level can be changed to INFO or higher via the configuration of DEBUG (presence of).  Using the log, we can ascertain the tokens themselves, in-flight, then decode them with *jwt.io*.  Here is an example of the tokens as debugged:
+
+API GW:
+![API GW Token](/images/JWT_APIGW_Decoded.png)
+
+OIC:
+![OIC Token](/images/JWT_OIC_Decoded.png)
 
 ## References
 
