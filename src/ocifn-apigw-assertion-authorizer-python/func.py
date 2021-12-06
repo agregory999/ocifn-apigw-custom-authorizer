@@ -24,19 +24,19 @@ def handler(ctx, data: io.BytesIO = None):
 
     # Establish Logging based on config (if there is one) - otherwise the default is INFO
     try:
-        if cfg["DEBUG"] and cfg["DEBUG"] == "true":
+        if cfg["DEBUG"] and cfg["DEBUG"].lower() == "true":
             logging.getLogger().setLevel(logging.DEBUG)
-            logging.getLogger().debug(f"DEBUG level set")
+            logging.getLogger('authorizer').debug(f"DEBUG level set")
         else:
-            logging.getLogger().debug(f"INFO level set")
             logging.getLogger().setLevel(logging.INFO)
+            logging.getLogger('authorizer').debug(f"INFO level set")
     except:
-        logging.getLogger().debug(f"INFO level set")
         logging.getLogger().setLevel(logging.INFO)
+        logging.getLogger('authorizer').debug(f"INFO level set")
 
     # Main Function routine
     try:
-        logging.getLogger().debug("Inside Python authorizer function: {0}".format(data.getvalue()))
+        logging.getLogger('authorizer').info("Entering Python authorizer function: {0}".format(data.getvalue()))
 
 ### Properties Setup  #### 
 
@@ -55,8 +55,8 @@ def handler(ctx, data: io.BytesIO = None):
         # Grab secret values from OCI Vault
         idcs_client_secret = get_text_secret(idcs_client_secret_ocid)
         asserter_public_key = get_text_secret(asserter_public_key_ocid)
-        logging.getLogger().debug("IDCS Secret (dec): " + idcs_client_secret)
-        logging.getLogger().debug("Asserter PubKey (dec): " + asserter_public_key)
+        logging.getLogger('authorizer').debug("IDCS Secret (dec): " + idcs_client_secret)
+        logging.getLogger('authorizer').debug("Asserter PubKey (dec): " + asserter_public_key)
 
 ### OAUTH IDCS Setup ###
 
@@ -67,11 +67,11 @@ def handler(ctx, data: io.BytesIO = None):
         options["ClientId"] = idcs_client_id
         options["ClientSecret"] = idcs_client_secret
         options["TokenIssuer"] = idcs_token_issuer
-        logging.getLogger().debug("IDCS Options: " + str(options))
+        logging.getLogger('authorizer').debug("IDCS Options: " + str(options))
 
         # Obtain IDCS Client
         am = IdcsClient.AuthenticationManager(options)
-        logging.getLogger().debug("Auth Manager: " + str(am))
+        logging.getLogger('authorizer').debug("Auth Manager: " + str(am))
 
 ### Assertion Decode w/o verify (need scope) #### 
 
@@ -94,11 +94,11 @@ def handler(ctx, data: io.BytesIO = None):
             # IDCS Call to token endpoint using UserAssertion
             access_token_result = am.userAssertion(user_assertion=tok,scope=APIGW_AUDIENCE+APIGW_SCOPE)
             access_token = access_token_result.getAccessToken()
-            logging.getLogger().debug("Access Token: " + str(access_token))
+            logging.getLogger('authorizer').debug("Access Token: " + str(access_token))
 
             # For token verification, we want to use the remote JWKS to verify
             remote_jwks_key = getRemoteJWKS(access_token,REMOTE_JWKS_URL)
-            logging.getLogger().debug("Remote Key: " + str(remote_jwks_key))
+            logging.getLogger('authorizer').debug("Remote Key: " + str(remote_jwks_key))
 
             # Decode the token with full verification, just to prove it is good
             access_token_decoded = jwt.decode(
@@ -108,8 +108,8 @@ def handler(ctx, data: io.BytesIO = None):
                 options={"verify_signature": True},
                 algorithms=["RS256"]
             )
-            logging.getLogger().debug("Access Token1: " + str(access_token))
-            logging.getLogger().info("Access Token1 Decoded: {0}".format(access_token_decoded))
+            logging.getLogger('authorizer').debug("Access Token1: " + str(access_token))
+            logging.getLogger('authorizer').info("Access Token1 Decoded: {0}".format(access_token_decoded))
 
             # Lastly, remove the scope from the list
             scopes.remove(APIGW_AUDIENCE+APIGW_SCOPE)
@@ -130,6 +130,7 @@ def handler(ctx, data: io.BytesIO = None):
             resp["expiresAt"] = str(expires_at_iso)
 
             # Return Successful
+            logging.getLogger('authorizer').info(f'Authorizer Returning Success: {resp["principal"]} Scope: {resp["scope"]}')
             return response.Response(
                 ctx, response_data=json.dumps(resp),
                 headers={"Content-Type": "application/json"}
@@ -144,7 +145,7 @@ def handler(ctx, data: io.BytesIO = None):
             # Hard code for now
             downstream_scopes = []
             func_resp = createUserAssertion(JWT_FUNC_OCID, JWT_FUNC_ENDPOINT, username, downstream_scopes)
-            logging.getLogger().debug("Function Response: " + func_resp)
+            logging.getLogger('authorizer').debug("Function Response: " + func_resp)
 
             # Get assertion from JSON
             json_resp = json.loads(func_resp)
@@ -158,7 +159,7 @@ def handler(ctx, data: io.BytesIO = None):
 
             # For token verification, we want to use the remote JWKS to verify
             remote_jwks_key = getRemoteJWKS(access_token2,REMOTE_JWKS_URL)
-            logging.getLogger().debug("Remote Key: " + str(remote_jwks_key))
+            logging.getLogger('authorizer').debug("Remote Key: " + str(remote_jwks_key))
 
             # Decode the token with full verification, just to prove it is good
             access_token_decoded2 = jwt.decode(
@@ -169,8 +170,8 @@ def handler(ctx, data: io.BytesIO = None):
                 algorithms=["RS256"]
             )
 
-            logging.getLogger().debug("Access Token2: " + str(access_token2))
-            logging.getLogger().debug("Access Token Decoded2: {0}".format(access_token_decoded2))
+            logging.getLogger('authorizer').debug("Access Token2: " + str(access_token2))
+            logging.getLogger('authorizer').debug("Access Token Decoded2: {0}".format(access_token_decoded2))
 
             # Get Correct expiration
             expires_at_epoch = access_token_decoded2["exp"]
@@ -190,7 +191,7 @@ def handler(ctx, data: io.BytesIO = None):
             resp["context"] = context
             
             # Return Successful
-            logging.getLogger().info("Returning Access Token to API GW")
+            logging.getLogger('authorizer').info("Returning Access Token to API GW")
             return response.Response(
                 ctx, response_data=json.dumps(resp),
                 headers={"Content-Type": "application/json"}
@@ -198,7 +199,7 @@ def handler(ctx, data: io.BytesIO = None):
     # Default Error Handler - return nothing good
     except (Exception, ValueError) as ex:
 
-        logging.getLogger().error(f"Error: {ex}",exc_info=0)
+        logging.getLogger('authorizer').error(f"Error: {ex}",exc_info=0)
         return response.Response(
             ctx, response_data=json.dumps(
                 {"active": False, "wwwAuthenticate": "Bearer realm=\"identity.oraclecloud.com\""}),
@@ -219,7 +220,7 @@ def get_text_secret(secret_ocid):
         #print(f"Secret content: {decrypted_secret_content}", flush=True)
 
     except Exception as ex:
-        print("ERROR: failed to retrieve the secret content", ex, flush=True)
+        logging.getLogger('oci-secret').error(f"Error obtaining secret: {str(ex)}")
         raise
     return decrypted_secret_content
 
@@ -252,7 +253,7 @@ def createUserAssertion(function_ocid, function_endpoint, username, scopes):
     # Base64 encode the request
     # Need to Stringify, then encode as bytes
     json_str = json.dumps(request)
-    logging.getLogger().debug("Request to Function: " + json_str)
+    logging.getLogger('jwt-assertion').debug("Request to Function: " + json_str)
 
     function_response = functions_client.invoke_function(
         function_id=function_ocid,
@@ -260,5 +261,5 @@ def createUserAssertion(function_ocid, function_endpoint, username, scopes):
     )
 
     # Response is JSON?
-    logging.getLogger().debug("Response from Function: " + str(function_response.data.text))
+    logging.getLogger('jwt-assertion').debug("Response from Function: " + str(function_response.data.text))
     return function_response.data.text

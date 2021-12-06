@@ -234,3 +234,10 @@ Logs from the functions go to the OCI Functions Invoke Log.  Within a minute of 
 ![Functions Logging](images/FunctionsLogging.png)
 
 The log level can be changed to INFO or higher via the configuration of DEBUG (presence of)
+
+## References
+
+The following code-related references may be helpful:
+[PyJWT](https://pyjwt.readthedocs.io/en/stable/index.html)
+
+[APIU GW Function](https://docs.oracle.com/en-us/iaas/developer-tutorials/tutorials/functions/func-api-gtw-token/01-summary.htm)
