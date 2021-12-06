@@ -68,7 +68,7 @@ To access a protected resource with its own scopes, add to the scope list as nec
 
 OIC's application (per-instance) is not changed, but each user that accesses the application must be explicitly added as a User or part of a Group on the *Application Roles* page.  Users who invoke OIC integrations are added to the *ServiceInvoker* role.
 
-![OIC Screen](images/OICDefault_User.png)
+![OIC Screen](images/IDCS_OICDefault_User.png)
 
 ### APIGW Application
 
