@@ -222,13 +222,13 @@ If the backend service (such as OIC) will require scopes to be passed with the t
 
 This route also requires a Header for Authroization (bearer token) to be passed.  So the route does this as part of the request:
 
-![API GW Header](images/APIGW-HeaderTransformation.png)
+![API GW Header](images/APIGW-HeaderTransform.png)
 
 ### Example 2 - Unsecure Backend
 
 If the backend service is simply being protected by API GW, then the following would work:
 
-![API GW Header](images/APIGW-UnauthBackend.png)
+![Unauth Backend](images/APIGW-UnauthBackend.png)
 
 ### Curl Examples 
 
