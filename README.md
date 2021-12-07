@@ -220,7 +220,7 @@ If the backend service (such as OIC) will require scopes to be passed with the t
 
 ![API GW Authorization](images/APIGW-AuthZ.png)
 
-This route also requires a Header for Authroization (bearer token) to be passed.  So the route does this as part of the request:
+This route also requires a Header for Authorization (bearer token) to be passed.  So the route does this by concatenating "Bearer " with the actual token, then placing the header as Authorization.  It also removes the (unnecessary) Assertion header as the backend service does not require it.
 
 ![API GW Header](images/APIGW-HeaderTransform.png)
 
@@ -287,3 +287,5 @@ The following code-related references may be helpful:
 [PyJWT](https://pyjwt.readthedocs.io/en/stable/index.html)
 
 [API GW Function Tutorial](https://docs.oracle.com/en-us/iaas/developer-tutorials/tutorials/functions/func-api-gtw-token/01-summary.htm)
+
+[Client Credentials OIC](https://www.ateam-oracle.com/post/trigger-oic-integration-using-oauth-client-credentials)
