@@ -117,6 +117,9 @@ An example policy shown here allows the *AGFunctionsGroup* to perform the tasks 
 
 ![Policy](images/DGPolicy.png)
 
+For more on policies and examples for EVERY OCI service, see the following:
+[OCI Policy Reference](https://docs.oracle.com/en-us/iaas/Content/Identity/Reference/policyreference.htm)
+
 ## Function Configuration (after deployment)
 
 Each function needs to be configured with runtime configs prior to running.  These can be viewed as "Constants", but can be changed at runtime if necessary.
