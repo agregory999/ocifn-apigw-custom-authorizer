@@ -277,15 +277,13 @@ Logs from the functions go to the OCI Functions Invoke Log.  Within a minute of 
 
 The log level can be changed to INFO or higher via the configuration of DEBUG (presence of).  Using the log, we can ascertain the tokens themselves, in-flight, then decode them with *jwt.io*.  Here is an example of the tokens as debugged:
 
-API GW:
-![API GW Token](/images/JWT_APIGW_Decoded.png)
-
-OIC:
-![OIC Token](/images/JWT_OIC_Decoded.png)
+|API GW Token|OIC Token|
+|---|---|
+|![API GW Token](/images/JWT_APIGW_Decoded.png)|![OIC Token](/images/JWT_OIC_Decoded.png)|
 
 ## References
 
 The following code-related references may be helpful:
 [PyJWT](https://pyjwt.readthedocs.io/en/stable/index.html)
 
-[APIU GW Function](https://docs.oracle.com/en-us/iaas/developer-tutorials/tutorials/functions/func-api-gtw-token/01-summary.htm)
+[API GW Function Tutorial](https://docs.oracle.com/en-us/iaas/developer-tutorials/tutorials/functions/func-api-gtw-token/01-summary.htm)
